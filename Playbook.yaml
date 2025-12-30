@@ -1,0 +1,54 @@
+# This is the playbook to install Docker and Docker-Compose on multiple servers using Ansible. And also execute the Bash script to deploy Wiki.js, Qdrant and Fast-API using Docker-Compose.
+# This Playbook will call out the roles defined in the 'roles' directory, which in our case is Docker-Setup.
+
+---
+- name: Install Docker and Docker-Compose on Multiple Servers & Check if the Docker is installed or not
+  hosts: servers
+  become: yes
+  vars: 
+    app_dir: /opt/wiki-js-app
+  tasks:
+    - name: Check if Docker is Installed or Not # will check if docker exist we can also check the binary for docker to know that docker exist or not.
+      command: docker --version
+      register: check_docker_installation
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Docker using role if not installed  # this role will execute when there will be no Docker Installed
+      include_role:
+        name: docker-setup
+      when: check_docker_installation.rc != 0
+
+    - name: Create Application Directory 
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+        
+    - name: Copy docker-compose.yaml to remote server
+      copy:
+        src: docker-compose.yaml
+        dest: "{{ app_dir }}/docker-compose.yaml"
+
+    - name: Create .env file for the secrets passed from semaphore
+      template:
+        src: .env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Copy configuration directory to remote server
+      copy:
+        src: config
+        dest: "{{ app_dir }}/config"
+        owner: root
+        group: root
+        mode: '0755'
+        
+    - name: Run Docker Compose to deploy services
+      command: docker compose up -d
+      args:
+        chdir: "{{ app_dir }}"

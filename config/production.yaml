@@ -1,0 +1,8 @@
+# just minimal configuration can be create referencing config.yaml in Documentation.
+log_level: INFO
+
+service:
+  api_key: 4e3153cfd616e3211402a92030d043900ec732d6a6729d1d45ba49a52635d054
+  host: 0.0.0.0
+  http_port: 6333
+  grpc_port: 6334

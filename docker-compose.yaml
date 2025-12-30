@@ -1,0 +1,67 @@
+services:
+  # Qdrant vector database
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    container_name: qdrant
+    ports:
+      - 6333:6333
+      - 6334:6334
+    expose:
+      - 6333
+      - 6334
+      - 6335
+    volumes:
+      - /opt/wiki-js-app/config:/qdrant/config:ro
+      - qdrant_data:/qdrant/storage
+    networks:
+      - wikijs_qdrant
+  # Wiki.js PostgresSQL DB
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: wiki
+      POSTGRES_PASSWORD: wikijsrocks
+      POSTGRES_USER: wikijs
+    logging:
+      driver: none
+    restart: unless-stopped
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - wikijs_qdrant
+  # Wiki.js
+  wiki:
+    image: ghcr.io/requarks/wiki:2
+    depends_on:
+      - db
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: wikijs
+      DB_PASS: wikijsrocks
+      DB_NAME: wiki
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - wiki-data:/wiki/data   # <-- Added for uploads & images
+    networks:
+      - wikijs_qdrant
+  
+# Volumes for same
+volumes:
+  qdrant_data:
+  db-data:
+  wiki-data:
+
+# Networks for same
+networks:
+  wikijs_qdrant:
+    
+
+
+
+
+ 
