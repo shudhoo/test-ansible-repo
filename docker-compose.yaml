@@ -1,66 +1,161 @@
+# services:
+#   # Qdrant vector database
+#   qdrant:
+#     image: qdrant/qdrant:latest
+#     restart: unless-stopped
+#     container_name: qdrant
+#     ports:
+#       - 6333:6333
+#       - 6334:6334
+#     expose:
+#       - 6333
+#       - 6334
+#       - 6335
+#     volumes:
+#       - /opt/wiki-js-app/config:/qdrant/config:ro
+#       - qdrant_data:/qdrant/storage
+#     networks:
+#       - wikijs_qdrant
+#   # Wiki.js PostgresSQL DB
+#   db:
+#     image: postgres:15-alpine
+#     environment:
+#       POSTGRES_DB: ${POSTGRES_DB}
+#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#       POSTGRES_USER: ${POSTGRES_USER}
+#     logging:
+#       driver: none
+#     restart: unless-stopped
+#     volumes:
+#       - db-data:/var/lib/postgresql/data
+#     networks:
+#       - wikijs_qdrant
+#   # Wiki.js
+#   wiki:
+#     image: ghcr.io/requarks/wiki:2
+#     depends_on:
+#       - db
+#     environment:
+#       DB_TYPE: ${DB_TYPE}
+#       DB_HOST: ${DB_HOST}
+#       DB_PORT: ${DB_PORT}
+#       DB_USER: ${DB_USER}
+#       DB_PASS: ${DB_PASS}
+#       DB_NAME: ${DB_NAME}
+#     restart: unless-stopped
+#     ports:
+#       - "3001:3000"
+#     volumes:
+#       - wiki-data:/wiki/data   # <-- Added for uploads & images
+#     networks:
+#       - wikijs_qdrant
+  
+# # Volumes for same
+# volumes:
+#   qdrant_data:
+#   db-data:
+#   wiki-data:
+
+# # Networks for same
+# networks:
+#   wikijs_qdrant:
+    
+version: "3.9"
+
 services:
-  # Qdrant vector database
-  qdrant:
-    image: qdrant/qdrant:latest
-    restart: unless-stopped
-    container_name: qdrant
-    ports:
-      - 6333:6333
-      - 6334:6334
-    expose:
-      - 6333
-      - 6334
-      - 6335
-    volumes:
-      - /opt/wiki-js-app/config:/qdrant/config:ro
-      - qdrant_data:/qdrant/storage
-    networks:
-      - wikijs_qdrant
-  # Wiki.js PostgresSQL DB
+  # -----------------------------
+  # PostgreSQL for Wiki.js
+  # -----------------------------
   db:
     image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_USER: ${POSTGRES_USER}
-    logging:
-      driver: none
+    container_name: wikijs-db
     restart: unless-stopped
+    environment:
+      POSTGRES_DB: wiki
+      POSTGRES_USER: wikijs
+      POSTGRES_PASSWORD: wikijsrocks
     volumes:
       - db-data:/var/lib/postgresql/data
+    logging:
+      driver: none
     networks:
       - wikijs_qdrant
+
+  # -----------------------------
   # Wiki.js
+  # -----------------------------
   wiki:
     image: ghcr.io/requarks/wiki:2
+    container_name: wikijs
+    restart: unless-stopped
     depends_on:
       - db
     environment:
-      DB_TYPE: ${DB_TYPE}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
-      DB_NAME: ${DB_NAME}
-    restart: unless-stopped
+      DB_TYPE: postgres 
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: wikijs
+      DB_PASS: wikijsrocks
+      DB_NAME: wiki
     ports:
       - "3001:3000"
     volumes:
-      - wiki-data:/wiki/data   # <-- Added for uploads & images
+      - wiki-data:/wiki/data
     networks:
       - wikijs_qdrant
-  
-# Volumes for same
+
+  # -----------------------------
+  # Qdrant Vector DB
+  # -----------------------------
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - /opt/wiki-js-app/production.yaml:/qdrant/config/production.yaml:ro
+      - qdrant_data:/qdrant/storage   # ✅ fixed
+    networks:
+      - wikijs_qdrant
+
+  # -----------------------------
+  # Doc Embedding API
+  # -----------------------------
+  doc-embedding-api:
+    build:
+      context: ./doc-embedding-api
+      dockerfile: Dockerfile
+    container_name: doc-embedding-api
+    restart: unless-stopped
+    depends_on:
+      - qdrant
+    environment:
+      INGEST_SECRET: ${INGEST_SECRET}
+      QDRANT_URL: ${QDRANT_URL}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+    ports:
+      - "8002:8000"
+    networks:
+      - wikijs_qdrant
+
+# -----------------------------
+# Volumes
+# -----------------------------
 volumes:
-  qdrant_data:
   db-data:
   wiki-data:
+  qdrant_data:
 
-# Networks for same
+# -----------------------------
+# Network
+# -----------------------------
 networks:
   wikijs_qdrant:
-    
-
+    driver: bridge
 
 
 

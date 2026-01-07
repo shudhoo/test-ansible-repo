@@ -7,6 +7,10 @@
   become: yes
   vars: 
     app_dir: /opt/wiki-js-app
+    repo_dir: /opt/wiki-js-knowledge-base
+    repo_url: "github.com/IntelliconnectAI-Engineering/wiki-js-testing-repo.git" # must use ssh@git
+    branch: "main"
+
   tasks:
     - name: Check if Docker is Installed or Not # will check if docker exist we can also check the binary for docker to know that docker exist or not.
       command: docker --version
@@ -40,15 +44,68 @@
         group: root
         mode: '0600'
 
-    - name: Copy configuration directory to remote server
+    - name: Create production.yaml file for the secrets passed from semaphore
+      template:
+        src: production.yaml.j2
+        dest: "{{ app_dir }}/production.yaml"
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Copy doc embedding API
       copy:
-        src: config
-        dest: "{{ app_dir }}/config"
+        src: doc-embedding-api/
+        dest: "{{ app_dir }}/doc-embedding-api/"
+
+    # before doing docker compose up [we have to setup the repository and have github action pipeline copied there]
+    # For that copy the "update-embedding.yaml" to the repository present.
+
+    - name: Create Directory to clone Repository
+      file:
+        path: "{{ repo_dir }}"
+        state: directory
         owner: root
         group: root
         mode: '0755'
-        
+
+    - name: Write ssh key from Semaphore secret to target server
+      copy:
+        content: "{{ ssh_key }}"
+        dest: /home/root/.ssh/github_deploy_key
+        mode: '0600'
+
+    - name: Clone GitHub Repository using Ansible-Git-Module
+      git: 
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dir }}"
+        version: "main"
+        key_file: /home/root/.ssh/github_deploy_key
+        accept_hostkey: yes
+
+    - name: Copy update-embedding.yaml to repository
+      copy: 
+        src: update-embedding.yaml
+        dest: "{{ repo_dir }}/.github/workflows/update-embedding.yaml"
+    
+    - name: Commit ahe push changes to github again
+      shell: |
+        git status --porcelain
+        git add .
+        git commit -m "Update files via Ansible" || echo "No changes to commit"
+        git push origin main
+      args:
+        chdir: "{{ repo_dir }}"
+
     - name: Run Docker Compose to deploy services
       command: docker compose up -d
       args:
         chdir: "{{ app_dir }}"
+
+
+#     -----BEGIN OPENSSH PRIVATE KEY-----
+# b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+# QyNTUxOQAAACB7hFsEt7ELyy7SQ4WloG9hxc+PLfT8lSp8tg7qND0D0gAAAJiUcmBIlHJg
+# SAAAAAtzc2gtZWQyNTUxOQAAACB7hFsEt7ELyy7SQ4WloG9hxc+PLfT8lSp8tg7qND0D0g
+# AAAEBXUdo9VYvEhJs5yy8TQ29WLjU8LiiLAGAdtrfirwXIr3uEWwS3sQvLLtJDhaWgb2HF
+# z48t9PyVKny2Duo0PQPSAAAAD3Rlc3RpbmdfYW5zaWJsZQECAwQFBg==
+# -----END OPENSSH PRIVATE KEY-----
