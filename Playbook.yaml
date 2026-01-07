@@ -68,25 +68,30 @@
         group: root
         mode: '0755'
 
-    - name: Write ssh key from Semaphore secret to target server
-      copy:
-        content: "{{ ssh_key }}"
-        dest: /home/root/.ssh/github_deploy_key
-        mode: '0600'
-
     - name: Clone GitHub Repository using Ansible-Git-Module
       git: 
-        repo: "{{ repo_url }}"
+        repo: "https://{{ lookup('env','GITHUB_TOKEN') }}@{{ repo_url  }}"
         dest: "{{ repo_dir }}"
         version: "main"
-        key_file: /home/root/.ssh/github_deploy_key
-        accept_hostkey: yes
+
+    - name: Ensure GitHub workflows directory exists
+      file:
+        path: "{{ repo_dir }}/.github/workflows"
+        state: directory
+        mode: '0775'
+
+    - name: Configure git identity
+      shell: |
+        git config user.email "automation@intelliconnectq.com"
+        git config user.name "Ansible Automation"
+      args:
+        chdir: "{{ repo_dir }}"
 
     - name: Copy update-embedding.yaml to repository
       copy: 
         src: update-embedding.yaml
         dest: "{{ repo_dir }}/.github/workflows/update-embedding.yaml"
-    
+
     - name: Commit ahe push changes to github again
       shell: |
         git status --porcelain
@@ -95,11 +100,6 @@
         git push origin main
       args:
         chdir: "{{ repo_dir }}"
-
-    - name: Run Docker Compose to deploy services
-      command: docker compose up -d
-      args:
-        chdir: "{{ app_dir }}"
 
 
 #     -----BEGIN OPENSSH PRIVATE KEY-----
