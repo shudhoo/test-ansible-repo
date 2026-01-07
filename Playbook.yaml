@@ -101,6 +101,11 @@
       args:
         chdir: "{{ repo_dir }}"
 
+    - name: Deploy stack using Docker Compose
+      command: docker compose up -d --build
+      args:
+        chdir: "{{ app_dir }}"
+
 
 #     -----BEGIN OPENSSH PRIVATE KEY-----
 # b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
