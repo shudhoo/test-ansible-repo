@@ -102,7 +102,7 @@ services:
     volumes:
       - wiki-data:/wiki/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/healthz"]
       interval: 30s
       timeout: 7s
       retries: 5
